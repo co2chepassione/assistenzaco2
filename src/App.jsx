@@ -48,13 +48,18 @@ export default function App() {
   return (
     <Routes>
 
-      <Route path="/" element={<Navigate to="/admin" />} />
+  <Route path="/" element={<Registrazione />} />
 
-      <Route path="/admin" element={<Gestionale />} />
+  <Route path="/registrazione" element={<Registrazione />} />
 
-      <Route path="/registrazione" element={<Registrazione />} />
+  <Route path="/admin" element={<Gestionale />} />
 
-      <Route
+  <Route
+    path="*"
+    element={<Navigate to="/" replace />}
+  />
+
+</Routes>
         path="*"
         element={
           <div style={{ padding: 40 }}>
