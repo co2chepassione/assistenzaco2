@@ -59,20 +59,6 @@ export default function App() {
     element={<Navigate to="/" replace />}
   />
 
-</Routes>
-        path="*"
-        element={
-          <div style={{ padding: 40 }}>
-            <h2>Pagina non trovata</h2>
-            <Link to="/admin">Vai al gestionale</Link>
-          </div>
-        }
-      />
-
-    </Routes>
-  );
-}
-
 const stileBottone = {
   width: "100%",
   padding: 12,
