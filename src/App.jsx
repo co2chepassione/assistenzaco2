@@ -1,8 +1,9 @@
-import { Routes, Route, Navigate, Link } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useState } from "react";
+
 import Clienti from "./pages/Clienti";
 import Interventi from "./pages/Interventi";
 import Registrazione from "./pages/Registrazione";
-import { useState } from "react";
 
 function Gestionale() {
   const [pagina, setPagina] = useState("clienti");
@@ -13,7 +14,7 @@ function Gestionale() {
         style={{
           width: 220,
           background: "#1f2937",
-          color: "white",
+          color: "#fff",
           padding: 20,
         }}
       >
@@ -47,17 +48,25 @@ function Gestionale() {
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Registrazione />} />
 
-  <Route path="/" element={<Registrazione />} />
+      <Route
+        path="/registrazione"
+        element={<Registrazione />}
+      />
 
-  <Route path="/registrazione" element={<Registrazione />} />
+      <Route
+        path="/admin"
+        element={<Gestionale />}
+      />
 
-  <Route path="/admin" element={<Gestionale />} />
-
-  <Route
-    path="*"
-    element={<Navigate to="/" replace />}
-  />
+      <Route
+        path="*"
+        element={<Navigate to="/" replace />}
+      />
+    </Routes>
+  );
+}
 
 const stileBottone = {
   width: "100%",
@@ -65,4 +74,8 @@ const stileBottone = {
   marginTop: 10,
   cursor: "pointer",
   fontSize: 16,
+  border: "none",
+  borderRadius: 8,
+  background: "#2563eb",
+  color: "white",
 };
