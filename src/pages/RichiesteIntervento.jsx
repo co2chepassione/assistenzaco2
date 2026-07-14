@@ -6,6 +6,8 @@ export default function RichiesteIntervento() {
   const [clienti, setClienti] = useState([]);
   const [caricamento, setCaricamento] = useState(true);
   const [elaborazione, setElaborazione] = useState(null);
+  const [ricercaVicini, setRicercaVicini] = useState(null);
+  const [clientiVicini, setClientiVicini] = useState({});
 
   const [geocodifica, setGeocodifica] = useState(false);
   const [risultatoGeocodifica, setRisultatoGeocodifica] =
@@ -32,7 +34,9 @@ export default function RichiesteIntervento() {
     const { data: datiClienti, error: erroreClienti } =
       await supabase
         .from("clienti")
-        .select("id,nome,cognome,telefono,email")
+        .select(
+          "id,nome,cognome,telefono,email,indirizzo,citta,provincia,cap,latitudine,longitudine"
+        )
         .order("cognome");
 
     if (erroreRichieste) {
@@ -157,6 +161,92 @@ export default function RichiesteIntervento() {
     }
 
     setGeocodifica(false);
+  }
+
+  function distanzaKm(lat1, lon1, lat2, lon2) {
+    const raggioTerra = 6371;
+    const radianti = (gradi) => (gradi * Math.PI) / 180;
+    const dLat = radianti(lat2 - lat1);
+    const dLon = radianti(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(radianti(lat1)) *
+        Math.cos(radianti(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+    return raggioTerra * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  async function trovaClientiVicini(richiesta) {
+    setRicercaVicini(richiesta.id);
+
+    const clienteRichiedente = trovaClienteAutomatico(richiesta);
+
+    if (!clienteRichiedente) {
+      setRicercaVicini(null);
+      alert(
+        "Cliente non trovato automaticamente. Controlla telefono o email."
+      );
+      return;
+    }
+
+    if (richiesta.cliente_id !== clienteRichiedente.id) {
+      const { error: erroreCollegamento } = await supabase
+        .from("richieste_intervento")
+        .update({
+          cliente_id: clienteRichiedente.id,
+        })
+        .eq("id", richiesta.id);
+
+      if (erroreCollegamento) {
+        setRicercaVicini(null);
+        alert(
+          `Errore collegamento cliente alla richiesta:\n${erroreCollegamento.message}`
+        );
+        return;
+      }
+    }
+
+    const { data, error } = await supabase.functions.invoke(
+      "geocode-richiesta",
+      { body: { richiesta_id: richiesta.id } }
+    );
+
+    if (error || data?.error) {
+      setRicercaVicini(null);
+      alert(`Errore geocodifica richiesta:\n${data?.error || error.message}`);
+      return;
+    }
+
+    if (!data?.trovato) {
+      setRicercaVicini(null);
+      alert(data?.message || "Impossibile localizzare la richiesta.");
+      return;
+    }
+
+    const vicini = clienti
+      .filter(
+        (cliente) =>
+          cliente.latitudine !== null &&
+          cliente.longitudine !== null &&
+          cliente.id !== clienteRichiedente?.id
+      )
+      .map((cliente) => ({
+        ...cliente,
+        distanza: distanzaKm(
+          Number(data.latitudine),
+          Number(data.longitudine),
+          Number(cliente.latitudine),
+          Number(cliente.longitudine)
+        ),
+      }))
+      .sort((a, b) => a.distanza - b.distanza)
+      .slice(0, 10);
+
+    setClientiVicini((precedenti) => ({
+      ...precedenti,
+      [richiesta.id]: vicini,
+    }));
+    setRicercaVicini(null);
   }
 
   function trovaClienteAutomatico(richiesta) {
@@ -591,6 +681,69 @@ export default function RichiesteIntervento() {
                   : "⚠️ Cliente non trovato automaticamente"}
               </div>
 
+              {clientiVicini[richiesta.id] && (
+                <div
+                  style={{
+                    marginTop: 20,
+                    padding: 18,
+                    background: "#eff6ff",
+                    border: "1px solid #bfdbfe",
+                    borderRadius: 10,
+                  }}
+                >
+                  <strong>📍 Clienti più vicini alla richiesta</strong>
+
+                  {clientiVicini[richiesta.id].length === 0 ? (
+                    <div style={{ marginTop: 12, color: "#6b7280" }}>
+                      Nessun cliente geocodificato disponibile.
+                    </div>
+                  ) : (
+                    clientiVicini[richiesta.id].map(
+                      (clienteVicino, indice) => (
+                        <div
+                          key={clienteVicino.id}
+                          style={{
+                            marginTop: 12,
+                            padding: 12,
+                            background: "#fff",
+                            borderRadius: 8,
+                            border: "1px solid #dbeafe",
+                          }}
+                        >
+                          <div style={{ fontWeight: 700 }}>
+                            {indice + 1}. {clienteVicino.cognome}{" "}
+                            {clienteVicino.nome}
+                          </div>
+                          <div
+                            style={{
+                              marginTop: 5,
+                              color: "#2563eb",
+                              fontWeight: 700,
+                            }}
+                          >
+                            Circa {clienteVicino.distanza.toFixed(1)} km
+                            in linea d'aria
+                          </div>
+                          <div style={{ marginTop: 5, color: "#6b7280" }}>
+                            {[
+                              clienteVicino.indirizzo,
+                              clienteVicino.cap,
+                              clienteVicino.citta,
+                              clienteVicino.provincia,
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </div>
+                          <div style={{ marginTop: 5 }}>
+                            📞 {clienteVicino.telefono || "-"}
+                          </div>
+                        </div>
+                      )
+                    )
+                  )}
+                </div>
+              )}
+
               <div
                 style={{
                   marginTop: 20,
@@ -599,6 +752,26 @@ export default function RichiesteIntervento() {
                   flexWrap: "wrap",
                 }}
               >
+                <button
+                  onClick={() => trovaClientiVicini(richiesta)}
+                  disabled={ricercaVicini === richiesta.id}
+                  style={{
+                    padding: "10px 18px",
+                    border: "none",
+                    borderRadius: 8,
+                    background:
+                      ricercaVicini === richiesta.id ? "#9ca3af" : "#059669",
+                    color: "#fff",
+                    cursor:
+                      ricercaVicini === richiesta.id ? "default" : "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  {ricercaVicini === richiesta.id
+                    ? "📍 Ricerca in corso..."
+                    : "📍 Trova clienti vicini"}
+                </button>
+
                 {!richiestaTrasformata && (
                   <button
                     onClick={() =>
