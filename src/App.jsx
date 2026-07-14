@@ -6,6 +6,8 @@ import { supabase } from "./supabase";
 import Clienti from "./pages/Clienti";
 import Interventi from "./pages/Interventi";
 import Registrazione from "./pages/Registrazione";
+import RichiestaIntervento from "./pages/RichiestaIntervento";
+import RichiesteIntervento from "./pages/RichiesteIntervento";
 
 function LoginAdmin({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -208,6 +210,13 @@ function Gestionale({ onLogout }) {
         </button>
 
         <button
+          style={stileBottone}
+          onClick={() => setPagina("richieste")}
+        >
+          📩 Richieste
+        </button>
+
+        <button
           style={{
             ...stileBottone,
             background: "#ef4444",
@@ -221,7 +230,10 @@ function Gestionale({ onLogout }) {
 
       <div style={{ flex: 1, padding: 30 }}>
         {pagina === "clienti" && <Clienti />}
+
         {pagina === "interventi" && <Interventi />}
+
+        {pagina === "richieste" && <RichiesteIntervento />}
       </div>
     </div>
   );
@@ -286,6 +298,11 @@ export default function App() {
       <Route
         path="/registrazione"
         element={<Registrazione />}
+      />
+
+      <Route
+        path="/richiesta-intervento"
+        element={<RichiestaIntervento />}
       />
 
       <Route
