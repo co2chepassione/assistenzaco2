@@ -7,6 +7,15 @@ export default function RichiesteIntervento() {
   const [caricamento, setCaricamento] = useState(true);
   const [elaborazione, setElaborazione] = useState(null);
 
+  const [geocodifica, setGeocodifica] = useState(false);
+  const [risultatoGeocodifica, setRisultatoGeocodifica] =
+    useState("");
+  const [progressoGeocodifica, setProgressoGeocodifica] =
+    useState({
+      elaborati: 0,
+      totale: 0,
+    });
+
   useEffect(() => {
     caricaDati();
   }, []);
@@ -41,6 +50,113 @@ export default function RichiesteIntervento() {
     setRichieste(datiRichieste || []);
     setClienti(datiClienti || []);
     setCaricamento(false);
+  }
+
+  function attendi(millisecondi) {
+    return new Promise((resolve) => {
+      setTimeout(resolve, millisecondi);
+    });
+  }
+
+  async function avviaGeocodificaClienti() {
+    const conferma = window.confirm(
+      "Avviare la geocodifica dei clienti?\n\nI clienti saranno elaborati uno alla volta con una pausa controllata tra una richiesta e la successiva."
+    );
+
+    if (!conferma) {
+      return;
+    }
+
+    setGeocodifica(true);
+    setRisultatoGeocodifica(
+      "📍 Preparazione geocodifica clienti..."
+    );
+
+    setProgressoGeocodifica({
+      elaborati: 0,
+      totale: 0,
+    });
+
+    const {
+      data: { session },
+      error: erroreSessione,
+    } = await supabase.auth.getSession();
+
+    if (erroreSessione || !session) {
+      setGeocodifica(false);
+
+      setRisultatoGeocodifica(
+        "❌ Sessione Admin non disponibile."
+      );
+
+      return;
+    }
+
+    let continua = true;
+    let numeroErrori = 0;
+    let numeroTrovati = 0;
+    let numeroNonTrovati = 0;
+
+    while (continua) {
+      const { data, error } = await supabase.functions.invoke(
+        "geocode-clienti",
+      );
+
+      if (error) {
+        setRisultatoGeocodifica(
+          `❌ Errore funzione:\n${error.message}`
+        );
+
+        numeroErrori += 1;
+        continua = false;
+
+        break;
+      }
+
+      if (data?.error) {
+        setRisultatoGeocodifica(
+          `❌ Errore:\n${data.error}`
+        );
+
+        numeroErrori += 1;
+        continua = false;
+
+        break;
+      }
+
+      setProgressoGeocodifica({
+        elaborati: data?.elaborati || 0,
+        totale: data?.totale || 0,
+      });
+
+      if (data?.completato) {
+        setRisultatoGeocodifica(
+          `✅ Geocodifica completata.\n\nClienti trovati: ${numeroTrovati}\nClienti non trovati o con dati mancanti: ${numeroNonTrovati}\nErrori tecnici: ${numeroErrori}`
+        );
+
+        continua = false;
+
+        break;
+      }
+
+      if (data?.trovato) {
+        numeroTrovati += 1;
+
+        setRisultatoGeocodifica(
+          `📍 Elaborazione in corso...\n\n${data.elaborati} / ${data.totale}\n\n✅ ${data.cliente}\n${data.indirizzo || ""}\n\nLatitudine: ${data.latitudine}\nLongitudine: ${data.longitudine}`
+        );
+      } else {
+        numeroNonTrovati += 1;
+
+        setRisultatoGeocodifica(
+          `📍 Elaborazione in corso...\n\n${data?.elaborati || 0} / ${data?.totale || 0}\n\n⚠️ ${data?.cliente || "Cliente"}\n${data?.indirizzo || ""}\n\n${data?.message || "Cliente non geocodificato."}`
+        );
+      }
+
+      await attendi(1200);
+    }
+
+    setGeocodifica(false);
   }
 
   function trovaClienteAutomatico(richiesta) {
@@ -201,6 +317,15 @@ export default function RichiesteIntervento() {
     return <div>Caricamento richieste...</div>;
   }
 
+  const percentualeGeocodifica =
+    progressoGeocodifica.totale > 0
+      ? Math.round(
+          (progressoGeocodifica.elaborati /
+            progressoGeocodifica.totale) *
+            100
+        )
+      : 0;
+
   return (
     <div>
       <h1>📩 Richieste Intervento</h1>
@@ -213,6 +338,115 @@ export default function RichiesteIntervento() {
       >
         Richieste di assistenza inviate dai clienti.
       </p>
+
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 25,
+          boxShadow: "0 3px 12px rgba(0,0,0,.08)",
+        }}
+      >
+        <h2
+          style={{
+            marginTop: 0,
+            marginBottom: 8,
+          }}
+        >
+          📍 Coordinate clienti
+        </h2>
+
+        <p
+          style={{
+            color: "#6b7280",
+            marginTop: 0,
+          }}
+        >
+          Geocodifica automatica dei clienti uno alla volta.
+        </p>
+
+        <button
+          onClick={avviaGeocodificaClienti}
+          disabled={geocodifica}
+          style={{
+            padding: "11px 18px",
+            border: "none",
+            borderRadius: 8,
+            background: geocodifica
+              ? "#9ca3af"
+              : "#059669",
+            color: "#fff",
+            cursor: geocodifica
+              ? "default"
+              : "pointer",
+            fontWeight: 700,
+          }}
+        >
+          {geocodifica
+            ? "📍 Geocodifica in corso..."
+            : "📍 Geocodifica tutti i clienti"}
+        </button>
+
+        {progressoGeocodifica.totale > 0 && (
+          <div
+            style={{
+              marginTop: 20,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: 8,
+                fontWeight: 700,
+              }}
+            >
+              <span>
+                {progressoGeocodifica.elaborati} /{" "}
+                {progressoGeocodifica.totale} clienti
+              </span>
+
+              <span>{percentualeGeocodifica}%</span>
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                height: 14,
+                background: "#e5e7eb",
+                borderRadius: 20,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${percentualeGeocodifica}%`,
+                  height: "100%",
+                  background: "#059669",
+                  transition: "width .3s ease",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {risultatoGeocodifica && (
+          <div
+            style={{
+              marginTop: 18,
+              padding: 15,
+              background: "#f9fafb",
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              whiteSpace: "pre-wrap",
+              lineHeight: 1.6,
+            }}
+          >
+            {risultatoGeocodifica}
+          </div>
+        )}
+      </div>
 
       {richieste.length === 0 ? (
         <div
@@ -229,6 +463,7 @@ export default function RichiesteIntervento() {
       ) : (
         richieste.map((richiesta) => {
           const cliente = trovaClienteAutomatico(richiesta);
+
           const richiestaTrasformata =
             richiesta.stato === "Trasformata";
 
@@ -264,9 +499,7 @@ export default function RichiesteIntervento() {
                     {richiesta.cognome} {richiesta.nome}
                   </h2>
 
-                  <div>
-                    📞 {richiesta.telefono}
-                  </div>
+                  <div>📞 {richiesta.telefono}</div>
 
                   <div style={{ marginTop: 5 }}>
                     ✉️ {richiesta.email || "-"}
