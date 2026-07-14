@@ -10,6 +10,7 @@ export default function ClienteScheda({
   const [tab, setTab] = useState("dati");
   const [modifica, setModifica] = useState(false);
   const [interventi, setInterventi] = useState([]);
+  const [eliminazione, setEliminazione] = useState(false);
 
   useEffect(() => {
     if (cliente?.id) {
@@ -27,6 +28,54 @@ export default function ClienteScheda({
     if (!error) {
       setInterventi(data || []);
     }
+  }
+
+  async function eliminaCliente() {
+    const conferma = window.confirm(
+      `ATTENZIONE\n\nStai per eliminare definitivamente:\n\n${cliente.cognome} ${cliente.nome}\n\nSaranno eliminati anche tutti gli interventi associati.\n\nVuoi continuare?`
+    );
+
+    if (!conferma) {
+      return;
+    }
+
+    setEliminazione(true);
+
+    const { error: erroreInterventi } = await supabase
+      .from("interventi")
+      .delete()
+      .eq("cliente_id", cliente.id);
+
+    if (erroreInterventi) {
+      setEliminazione(false);
+
+      alert(
+        `Errore durante l'eliminazione degli interventi:\n${erroreInterventi.message}`
+      );
+
+      return;
+    }
+
+    const { error: erroreCliente } = await supabase
+      .from("clienti")
+      .delete()
+      .eq("id", cliente.id);
+
+    if (erroreCliente) {
+      setEliminazione(false);
+
+      alert(
+        `Errore durante l'eliminazione del cliente:\n${erroreCliente.message}`
+      );
+
+      return;
+    }
+
+    alert("Cliente eliminato correttamente.");
+
+    onChiudi();
+
+    window.location.reload();
   }
 
   if (!cliente) {
@@ -71,6 +120,7 @@ export default function ClienteScheda({
         }}
       >
         <strong>{titolo}</strong>
+
         <span>{valore || "-"}</span>
       </div>
     );
@@ -134,8 +184,10 @@ export default function ClienteScheda({
               border: "none",
               borderRadius: 8,
               cursor: "pointer",
-              background: tab === id ? "#2563eb" : "#e5e7eb",
-              color: tab === id ? "#fff" : "#111827",
+              background:
+                tab === id ? "#2563eb" : "#e5e7eb",
+              color:
+                tab === id ? "#fff" : "#111827",
               fontWeight: 600,
             }}
           >
@@ -143,6 +195,7 @@ export default function ClienteScheda({
           </button>
         ))}
       </div>
+
       {tab === "dati" && (
         <>
           {Riga("Nome", cliente.nome)}
@@ -248,6 +301,7 @@ export default function ClienteScheda({
 
           <button
             onClick={() => onNuovoIntervento(cliente)}
+            disabled={eliminazione}
             style={{
               marginTop: 20,
               padding: "10px 18px",
@@ -263,6 +317,7 @@ export default function ClienteScheda({
           </button>
         </div>
       )}
+
       <div
         style={{
           display: "flex",
@@ -270,10 +325,12 @@ export default function ClienteScheda({
           marginTop: 30,
           borderTop: "1px solid #e5e7eb",
           paddingTop: 20,
+          flexWrap: "wrap",
         }}
       >
         <button
           onClick={() => setModifica(true)}
+          disabled={eliminazione}
           style={{
             padding: "10px 18px",
             border: "none",
@@ -289,6 +346,7 @@ export default function ClienteScheda({
 
         <button
           onClick={() => onNuovoIntervento(cliente)}
+          disabled={eliminazione}
           style={{
             padding: "10px 18px",
             border: "none",
@@ -303,7 +361,28 @@ export default function ClienteScheda({
         </button>
 
         <button
+          onClick={eliminaCliente}
+          disabled={eliminazione}
+          style={{
+            padding: "10px 18px",
+            border: "none",
+            borderRadius: 8,
+            background:
+              eliminazione ? "#fca5a5" : "#991b1b",
+            color: "#fff",
+            cursor:
+              eliminazione ? "default" : "pointer",
+            fontWeight: 600,
+          }}
+        >
+          {eliminazione
+            ? "Eliminazione..."
+            : "🗑️ Elimina Cliente"}
+        </button>
+
+        <button
           onClick={onChiudi}
+          disabled={eliminazione}
           style={{
             padding: "10px 18px",
             border: "none",
